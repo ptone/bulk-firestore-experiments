@@ -1,38 +1,44 @@
 import { fromCSV } from 'rx-from-csv';
+const Rx = require('rxjs/Rx');
+
 import 'rxjs/add/operator/bufferCount';
+import 'rxjs/add/operator/mergeMap';
+import 'rxjs/observable/fromPromise';
 
 const uuidv4 = require('uuid/v4');
 const admin = require('firebase-admin');
 
-// var serviceAccount = require("path/to/serviceAccountKey.json");
+const collectionName:string = "csvtest";
+// note on crappy airport wifi, these numbers hit 
+// 2300 writes-per-second, so it would not be hard
+// to hit the beta limit of 2500 WPS
+const concurrentRequests:number = 15;
+const batchSize:number = 300;
+
+// firebase --project wheelchair-demo firestore:delete -y --shallow /csvtest
 
 admin.initializeApp({
-  // credential: admin.credential.cert(serviceAccount)
   credential: admin.credential.applicationDefault()
 });
 
 var db = admin.firestore();
 
-var dataRef = db.collection('csvtest');
+var collection = db.collection(collectionName);
 
-
-/**
- * For example, there is a data.csv with content
- *
- * id,name
- * 1,"Mike",
- * 2,"Tommy"
- */
+function writeBatch(bundle:any) {
+  console.log("building batch");
+  let batch = db.batch();
+  for (let i in bundle) {
+    // note there is no .add method on batch
+    batch.set(collection.doc(uuidv4()), bundle[i]);
+  }
+  return Rx.Observable.fromPromise(batch.commit());
+}
 
 fromCSV('../data.csv')
-  .bufferCount(3)
-  .subscribe((bundle) => {
-    console.log("building batch");
-    let batch = db.batch();
-    for (let i in bundle) {
-      console.log(i); // "0", "1", "2",
-      batch.set(dataRef.doc(uuidv4()), bundle[i]);
-      // batch.add(i);
-   }
-   batch.commit().then(() => console.log("batch written"));
-  });
+  .bufferCount(batchSize)
+  .mergeMap(bundle => writeBatch(bundle),
+    // (oVal, iVal, oIndex, iIndex) => [oIndex, oVal, iIndex, iVal],
+    () => '',
+    concurrentRequests)
+  .subscribe(result => console.log("batch written"));
