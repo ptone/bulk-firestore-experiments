@@ -16,7 +16,7 @@ admin.initializeApp({
 var db = admin.firestore();
 
 const collectionName:string = "csvtest";
-const concurrentRequests:number = 10;
+const concurrentRequests:number = 1;
 const batchSize:number = 250;
 let collection = db.collection(collectionName);
 
@@ -24,13 +24,29 @@ let break$ = new Subject<boolean>();
 
 let endGet: boolean = false;
 let headers: string[] = [];
+let cursor: string = '';
 
 function getChunk(offset: number) {
   if (endGet) {return []};
   console.error("documents from", offset)
-  return Rx.Observable.fromPromise(
-    collection.limit(batchSize).offset(offset).get()
-  )
+  console.log(admin.firestore.FieldPath.documentId());
+  if (cursor) {
+    return Rx.Observable.fromPromise(
+      collection
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(batchSize)
+      .startAt(cursor)
+      .get()
+      )
+
+  } else {
+    return Rx.Observable.fromPromise(
+      collection
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(batchSize)
+      .get()
+      )
+  }
 }
 
 //break$.asObservable().subscribe(f => console.log("empty: ", f));
@@ -57,6 +73,11 @@ chunks
         }
         console.log(dataArray.join(','));
       });
+      if (snapshot.docs.length < batchSize) {
+        break$.next(snapshot.empty)
+        endGet = true; 
+      }
+      cursor = snapshot.docs[snapshot.docs.length - 1].id;
     } else {
       // there were no more records
       //console.log("end");
