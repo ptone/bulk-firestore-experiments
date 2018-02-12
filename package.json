@@ -6,6 +6,8 @@
   "dependencies": {
     "@types/node": "^9.4.4",
     "firebase-admin": "^5.8.1",
+    "googleapis": "^26.0.1",
+    "googleapis-async": "^2.0.0",
     "rx-from-csv": "^1.0.0",
     "ts-node": "^4.1.0",
     "typescript": "^2.7.1",
