@@ -12,8 +12,8 @@ const collectionName:string = "csvtest";
 // note on crappy airport wifi, these numbers hit 
 // 2300 writes-per-second, so it would not be hard
 // to hit the beta limit of 2500 WPS
-const concurrentRequests:number = 15;
-const batchSize:number = 300;
+const concurrentRequests:number = 10;
+const batchSize:number = 250;
 
 // firebase --project wheelchair-demo firestore:delete -y --shallow /csvtest
 
@@ -21,16 +21,16 @@ admin.initializeApp({
   credential: admin.credential.applicationDefault()
 });
 
-var db = admin.firestore();
+let db = admin.firestore();
 
-var collection = db.collection(collectionName);
+let collection = db.collection(collectionName);
 
-function writeBatch(bundle:any) {
+function writeBatch(bundle:any[]) {
   console.log("building batch");
   let batch = db.batch();
-  for (let i in bundle) {
+  for (let i of bundle) {
     // note there is no .add method on batch
-    batch.set(collection.doc(uuidv4()), bundle[i]);
+    batch.set(collection.doc(uuidv4()), i);
   }
   return Rx.Observable.fromPromise(batch.commit());
 }
