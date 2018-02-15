@@ -18,7 +18,7 @@ const DISCOVERY_API = 'https://cloudiot.googleapis.com/$discovery/rest';
 
 const concurrentRequests:number = 25;
 
-async function makeClient() {
+export async function makeClient() {
   const googleAuth = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const serviceAccount = JSON.parse(fs.readFileSync(googleAuth));
   const jwtAccess = new google.auth.JWT();
@@ -51,17 +51,6 @@ function createUnauthDevice(client:any, row:any)
   let cloudRegion: string = "us-central1";
   let registryId: string = "t-registry";
   let projectId: string = "iot-provisioning";
-  const body = {
-    id: deviceId,
-    // credentials: [
-    //   {
-    //     publicKey: {
-    //       format: 'ES256_PEM',
-    //       key: fs.readFileSync(esCertificateFile).toString()
-    //     }
-    //   }
-    // ]
-  };
   console.log('Creating device:', deviceId);
   const parentName = `projects/${projectId}/locations/${cloudRegion}`;
   const registryName = `${parentName}/registries/${registryId}`;
@@ -106,4 +95,4 @@ async function main() {
   .subscribe(result => console.log(result));
 }
 
-main();
+//main();

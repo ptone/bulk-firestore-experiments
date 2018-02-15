@@ -16,20 +16,12 @@ admin.initializeApp({
 var db = admin.firestore();
 
 const collectionName:string = "csvtest";
-const concurrentRequests:number = 1;
-const batchSize:number = 250;
-let collection = db.collection(collectionName);
-
-let break$ = new Subject<boolean>();
-
-let endGet: boolean = false;
-let headers: string[] = [];
+const batchSize:number = 5;
+let targetCollection = db.collection(collectionName);
 let cursor: string = '';
 
-function getChunk(offset: number) {
-  if (endGet) {return []};
-  console.error("documents from", offset)
-  console.log(admin.firestore.FieldPath.documentId());
+function getDocumentsPage(collection:any, cursor:any) {
+  // console.log('getting page');
   if (cursor) {
     return Rx.Observable.fromPromise(
       collection
@@ -37,8 +29,7 @@ function getChunk(offset: number) {
       .limit(batchSize)
       .startAt(cursor)
       .get()
-      )
-
+      );
   } else {
     return Rx.Observable.fromPromise(
       collection
@@ -49,39 +40,41 @@ function getChunk(offset: number) {
   }
 }
 
-//break$.asObservable().subscribe(f => console.log("empty: ", f));
+// https://gist.github.com/amowu/5566485c9a8a64f3de171528f086fb24
+// Based on: https://stackoverflow.com/questions/35254323/rxjs-observable-pagination
+function fetchCollection(collection:any, cursor?:any) {
+  return Rx.Observable.defer(
+    () => getDocumentsPage(collection, cursor)
+      .flatMap((snapshot:any) => {
 
-// there has to be a better way to do an "inifite range"
-let chunks = Rx.Observable.range(0, 200);
+        console.log(snapshot.docs.length);
+        const items$ = Rx.Observable.from(snapshot.docs);
+        let next$;
+        if (snapshot.docs.length < batchSize) {
+          next$ = Rx.Observable.empty();
+        } else {
+          cursor = snapshot.docs[snapshot.docs.length - 1].id;
+          // I'm stuck here - how do I set next$ to an observable
+          // of this promise-based observable's results
+          next$ = Rx.Observable.from(
+            getDocumentsPage(collection, cursor)
+              .flatMap((snapshot:any) => {
+                return snapshot.docs;
+              }));
+        }
+        // console.log('next');
+        // console.log(next$);
+        return Rx.Observable.concat(
+          items$,
+          next$
+        );
+      })
+  );
+}
 
-chunks
-  .map((r:number) => r * batchSize)
-  .mergeMap((offset: number) => getChunk(offset),
-    (oVal:any, snapshot:any, oIndex:any, iIndex:any) => snapshot,
-    concurrentRequests)
-  .subscribe((snapshot:any) => {
-    if (!snapshot.empty) {
-      snapshot.forEach((doc: any) => {
-        let row = doc.data();
-        if (headers.length == 0) {
-          headers = Object.keys(row).sort();
-          console.log(headers.join(','));
-        }
-        let dataArray = [];
-        for (let k of headers) {
-          dataArray.push(row[k]);
-        }
-        console.log(dataArray.join(','));
-      });
-      if (snapshot.docs.length < batchSize) {
-        break$.next(snapshot.empty)
-        endGet = true; 
-      }
-      cursor = snapshot.docs[snapshot.docs.length - 1].id;
-    } else {
-      // there were no more records
-      //console.log("end");
-      break$.next(snapshot.empty)
-      endGet = true;
-    }
-  });
+let documents$ = fetchCollection(targetCollection);
+
+documents$.take(30).subscribe((d:any) => {
+  console.log('doc');
+  // console.log(d);
+});
