@@ -8,6 +8,7 @@ const API_VERSION = 'v1';
 const DISCOVERY_API = 'https://cloudiot.googleapis.com/$discovery/rest';
 
 const concurrentRequests:number = 1;
+const batchSize:number = 30;
 
 import { makeClient } from './createDevices';
 
@@ -46,7 +47,7 @@ function listDevices(client:any, pageToken?:string) {
   const request: any = {
     parent: registryName,
     //resource: body
-    pageSize: 1,
+    pageSize: batchSize,
   };
   if (pageToken) {
     request['pageToken'] = pageToken;
