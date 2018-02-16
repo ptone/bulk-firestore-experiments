@@ -9,31 +9,28 @@ import 'rxjs/observable/fromPromise';
 import { WSAEAFNOSUPPORT } from 'constants';
 
 const uuidv4 = require('uuid/v4');
+var {google} = require('googleapis');
 
-//const google = require('googleapis');
-const google = require("googleapis-async");
-
-const API_VERSION = 'v1';
-const DISCOVERY_API = 'https://cloudiot.googleapis.com/$discovery/rest';
+const cloudRegion: string = "us-central1";
+const registryId: string = "t-registry";
+const projectId: string = "iot-provisioning";
+const parentName = `projects/${projectId}/locations/${cloudRegion}`;
+const registryName = `${parentName}/registries/${registryId}`;
 
 const concurrentRequests:number = 25;
 
-export async function makeClient() {
-  const googleAuth = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  const serviceAccount = JSON.parse(fs.readFileSync(googleAuth));
-  const jwtAccess = new google.auth.JWT();
-  jwtAccess.fromJSON(serviceAccount);
-  jwtAccess.scopes = 'https://www.googleapis.com/auth/cloud-platform';
-  google.options({ auth: jwtAccess });
-  const discoveryUrl = `${DISCOVERY_API}?version=${API_VERSION}`;
-  let client = new Promise(function(resolve,reject){
-    google.discoverAPI(discoveryUrl, function(err:any, client:any){
-           if(err !== null) return reject(err);
-           resolve(client);
-       });
-  });
-  let c = await client;
-  return c;
+async function getADC() {
+  const res = await google.auth.getApplicationDefault();
+  let client = res.credential;
+  if (client.createScopedRequired && client.createScopedRequired()) {
+    // Scopes can be specified either as an array or as a single, space-delimited string.
+    const scopes = ['https://www.googleapis.com/auth/cloud-platform'];
+    client = client.createScoped(scopes);
+  }
+  return {
+    client: client,
+    projectId: res.projectId
+  }
 }
 
 
@@ -48,9 +45,7 @@ function createUnauthDevice(client:any, row:any)
   // const registryId = 'my-registry';
   // let deviceId: string = row['deviceId'] ? row['deviceId'] : uuidv4();
   let deviceId = 'd-' + uuidv4();
-  let cloudRegion: string = "us-central1";
-  let registryId: string = "t-registry";
-  let projectId: string = "iot-provisioning";
+
   console.log('Creating device:', deviceId);
   const parentName = `projects/${projectId}/locations/${cloudRegion}`;
   const registryName = `${parentName}/registries/${registryId}`;
@@ -81,10 +76,11 @@ function createUnauthDevice(client:any, row:any)
 }
 
 async function main() {
-  console.log('hello');
-  let client = await makeClient();
-  // console.log(client);
-  console.log('there');
+  const adc = await getADC();
+  let client = google.cloudiot({
+    version: 'v1',
+    auth: adc.client
+  })
 
   fromCSV('../devices.csv')
   .map(r => r)
@@ -95,4 +91,4 @@ async function main() {
   .subscribe(result => console.log(result));
 }
 
-//main();
+main();
